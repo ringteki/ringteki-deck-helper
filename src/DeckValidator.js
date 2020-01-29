@@ -1,198 +1,308 @@
+const $ = require('jquery'); // eslint-disable-line no-unused-vars
+const _ = require('underscore');
 const moment = require('moment');
 
-const AgendaRules = require('./AgendaRules');
 const RestrictedList = require('./RestrictedList');
+const BannedList = require('./BannedList');
+
+const openRoles = [
+    'keeper-of-air',
+    'keeper-of-earth',
+    'keeper-of-fire',
+    'keeper-of-water',
+    'keeper-of-void',
+    'seeker-of-air',
+    'seeker-of-earth',
+    'seeker-of-fire',
+    'seeker-of-water',
+    'seeker-of-void',
+    'support-of-the-crane',
+    'support-of-the-phoenix',
+    'support-of-the-scorpion',
+    'support-of-the-unicorn',
+    'support-of-the-lion',
+    'support-of-the-crab',
+    'support-of-the-dragon'
+];
 
 function getDeckCount(deck) {
     let count = 0;
 
-    for(const cardEntry of deck) {
-        count += cardEntry.count;
-    }
+    _.each(deck, function(card) {
+        count += card.count;
+    });
 
     return count;
 }
 
 function isCardInReleasedPack(packs, card) {
-    let pack = packs.find(pack => {
-        return card.packCode === pack.code;
-    });
+    let packsWithCard = _.compact(_.map(card.pack_cards, pack => _.find(packs, p => p.id === pack.pack.id)));
 
-    if(!pack) {
+    if(packsWithCard.length === 0) {
         return false;
     }
 
-    let releaseDate = pack.releaseDate;
+    let releaseDates = _.compact(_.map(packsWithCard, pack => pack.available || pack.released_at));
 
-    if(!releaseDate) {
+    if(releaseDates.length === 0) {
         return false;
     }
 
-    releaseDate = moment(releaseDate, 'YYYY-MM-DD');
     let now = moment();
 
-    return releaseDate <= now;
+    return _.any(releaseDates, date => moment(date, 'YYYY-MM-DD') <= now);
 }
 
+function rulesForKeeperRole(element) {
+    return {
+        influence: 3,
+        roleRestrictions: ['keeper', element]
+    };
+}
+
+function rulesForSeekerRole(element) {
+    return {
+        maxProvince: {[element]: 1},
+        roleRestrictions: ['seeker', element]
+    };
+}
+
+function rulesForSupportRole(faction) {
+    return {
+        influence: 8,
+        roleRestrictions: ['support'],
+        rules: [
+            {
+                message: 'Support roles can only be used with the match alliance clan',
+                condition: deck => deck.alliance.value === faction
+            }
+        ]
+    };
+}
+
+/**
+ * Validation rule structure is as follows. All fields are optional.
+ *
+ * requiredDraw  - the minimum amount of cards required for the draw deck.
+ * requiredPlots - the exact number of cards required for the plot deck.
+ * maxDoubledPlots - the maximum amount of plot cards that can be contained twice in the plot deck.
+ * mayInclude    - function that takes a card and returns true if it is allowed in the overall deck.
+ * cannotInclude - function that takes a card and return true if it is not allowed in the overall deck.
+ * rules         - an array of objects containing a `condition` function that takes a deck and return true if the deck is valid for that rule, and a `message` used for errors when invalid.
+ */
+const roleRules = {
+    'keeper-of-air': rulesForKeeperRole('air'),
+    'keeper-of-earth': rulesForKeeperRole('earth'),
+    'keeper-of-fire': rulesForKeeperRole('fire'),
+    'keeper-of-void': rulesForKeeperRole('void'),
+    'keeper-of-water': rulesForKeeperRole('water'),
+    'seeker-of-air': rulesForSeekerRole('air'),
+    'seeker-of-earth': rulesForSeekerRole('earth'),
+    'seeker-of-fire': rulesForSeekerRole('fire'),
+    'seeker-of-void': rulesForSeekerRole('void'),
+    'seeker-of-water': rulesForSeekerRole('water'),
+    'support-of-the-crane': rulesForSupportRole('crane'),
+    'support-of-the-phoenix': rulesForSupportRole('phoenix'),
+    'support-of-the-scorpion': rulesForSupportRole('scorpion'),
+    'support-of-the-unicorn': rulesForSupportRole('unicorn'),
+    'support-of-the-lion': rulesForSupportRole('lion'),
+    'support-of-the-crab': rulesForSupportRole('crab'),
+    'support-of-the-dragon': rulesForSupportRole('dragon')
+};
+
 class DeckValidator {
-    constructor(packs, restrictedListRules) {
+    constructor(packs) {
         this.packs = packs;
-        this.restrictedList = new RestrictedList(restrictedListRules);
+        this.bannedList = new BannedList();
+        this.restrictedList = new RestrictedList();
     }
 
     validateDeck(deck) {
         let errors = [];
         let unreleasedCards = [];
         let rules = this.getRules(deck);
-        let plotCount = getDeckCount(deck.plotCards);
-        let drawCount = getDeckCount(deck.drawCards);
+        let stronghold = deck.stronghold.length > 0 ? deck.stronghold[0].card : null;
+        let role = deck.role.length > 0 ? deck.role[0].card : null;
+        let provinceCount = getDeckCount(deck.provinceCards);
+        let dynastyCount = getDeckCount(deck.dynastyCards);
+        let conflictCount = getDeckCount(deck.conflictCards);
 
-        if(plotCount < rules.requiredPlots) {
-            errors.push('Too few plot cards');
-        } else if(plotCount > rules.requiredPlots) {
-            errors.push('Too many plot cards');
+        if(deck.stronghold.length > 1) {
+            errors.push('Too many strongholds');
         }
 
-        if(drawCount < rules.requiredDraw) {
-            errors.push('Too few draw cards');
+        if(deck.role.length > 1) {
+            errors.push('Too many roles');
         }
 
-        for(const rule of rules.rules) {
+        if(provinceCount < rules.requiredProvinces) {
+            errors.push('Too few province cards');
+        } else if(provinceCount > rules.requiredProvinces) {
+            errors.push('Too many province cards');
+        }
+
+        if(dynastyCount < rules.minimumDynasty) {
+            errors.push('Too few dynasty cards');
+        } else if(dynastyCount > rules.maximumDynasty) {
+            errors.push('Too many dynasty cards');
+        }
+
+        if(conflictCount < rules.minimumConflict) {
+            errors.push('Too few conflict cards');
+        } else if(conflictCount > rules.maximumConflict) {
+            errors.push('Too many conflict cards');
+        }
+
+        _.each(rules.rules, rule => {
             if(!rule.condition(deck)) {
                 errors.push(rule.message);
             }
-        }
+        });
 
-        let allCards = deck.plotCards.concat(deck.drawCards);
+        let allCards = deck.provinceCards.concat(deck.dynastyCards).concat(deck.conflictCards);
         let cardCountByName = {};
 
-        for(let cardQuantity of allCards) {
-            cardCountByName[cardQuantity.card.name] = cardCountByName[cardQuantity.card.name] || { name: cardQuantity.card.name, type: cardQuantity.card.type, limit: cardQuantity.card.deckLimit, count: 0 };
+        _.each(allCards, cardQuantity => {
+            cardCountByName[cardQuantity.card.name] = cardCountByName[cardQuantity.card.name] || { name: cardQuantity.card.name, faction: cardQuantity.card.clan, influence: cardQuantity.card.influence_cost, limit: cardQuantity.card.deck_limit, count: 0, allowed_clans: cardQuantity.card.allowed_clans };
             cardCountByName[cardQuantity.card.name].count += cardQuantity.count;
-        }
 
-        for(let card of deck.bannerCards || []) {
-            cardCountByName[card.name] = cardCountByName[card.name] || { name: card.name, type: card.type, limit: card.deckLimit, count: 0 };
-            cardCountByName[card.name].count += 1;
-        }
-
-        // Only add rookery cards here as they don't count towards deck limits
-        allCards = allCards.concat(deck.rookeryCards || []);
-
-        for(const cardQuantity of allCards) {
-            if(!rules.mayInclude(cardQuantity.card) || rules.cannotInclude(cardQuantity.card)) {
-                errors.push(cardQuantity.card.label + ' is not allowed by faction or agenda');
+            if(!rules.mayInclude(cardQuantity.card) || rules.cannotInclude(cardQuantity.card) || (cardQuantity.card.role_restriction && !rules.roleRestrictions.includes(cardQuantity.card.role_restriction))) {
+                errors.push(cardQuantity.card.name + ' is not allowed by clan, alliance or role');
             }
 
             if(!isCardInReleasedPack(this.packs, cardQuantity.card)) {
-                unreleasedCards.push(cardQuantity.card.label + ' is not yet released');
+                unreleasedCards.push(cardQuantity.card.name + ' is not yet released');
             }
+        });
+
+        if(!stronghold) {
+            errors.push('No stronghold');
+        } else if(!isCardInReleasedPack(this.packs, stronghold)) {
+            unreleasedCards.push(stronghold.name + ' is not yet released');
         }
 
-        if(deck.agenda && !isCardInReleasedPack(this.packs, deck.agenda)) {
-            unreleasedCards.push(deck.agenda.label + ' is not yet released');
+        if(role && !isCardInReleasedPack(this.packs, role)) {
+            unreleasedCards.push(role.name + ' is not yet released');
         }
 
-        let doubledPlots = Object.values(cardCountByName).filter(card => card.type === 'plot' && card.count === 2);
-        if(doubledPlots.length > rules.maxDoubledPlots) {
-            errors.push('Maximum allowed number of doubled plots: ' + rules.maxDoubledPlots);
-        }
+        _.each(rules.maxProvince, (amount, element) => {
+            let provinces = _.filter(deck.provinceCards, card => card.card.element === element);
+            if(provinces.length > amount) {
+                errors.push('Too many provinces with ' + element + ' element');
+            }
+        });
 
-        for(const card of Object.values(cardCountByName)) {
+        _.each(cardCountByName, card => {
             if(card.count > card.limit) {
                 errors.push(card.name + ' has limit ' + card.limit);
             }
+        });
+
+        let totalInfluence = _.reduce(cardCountByName, (total, card) => {
+            if(card.influence && card.faction !== deck.faction.value) {
+                return total + card.influence * card.count;
+            }
+            return total;
+        }, 0);
+
+        if(totalInfluence > rules.influence) {
+            errors.push('Total influence (' + totalInfluence.toString() + ') is higher than max allowed influence (' + rules.influence.toString() + ')');
         }
 
-        let uniqueCards = allCards.map(cardQuantity => cardQuantity.card).concat(deck.bannerCards);
-
-        // Ensure agenda cards are validated against the restricted list
-        if(deck.agenda) {
-            uniqueCards.push(deck.agenda);
-        }
-
-        let restrictedResult = this.restrictedList.validate(uniqueCards);
-        let includesDraftCards = this.isDraftCard(deck.agenda) || allCards.some(cardQuantity => this.isDraftCard(cardQuantity.card));
-
-        if(includesDraftCards) {
-            errors.push('You cannot include Draft cards in a normal deck');
-        }
+        let restrictedResult = this.restrictedList.validate(allCards.map(cardQuantity => cardQuantity.card));
+        let bannedResult = this.bannedList.validate(allCards.map(cardQuantity => cardQuantity.card));
 
         return {
             basicRules: errors.length === 0,
-            faqJoustRules: restrictedResult.validForJoust,
-            faqVersion: restrictedResult.version,
-            noBannedCards: restrictedResult.noBannedCards,
             noUnreleasedCards: unreleasedCards.length === 0,
-            plotCount: plotCount,
-            drawCount: drawCount,
-            extendedStatus: errors.concat(unreleasedCards).concat(restrictedResult.errors)
+            officialRole: !role || openRoles.includes(role.id),
+            faqRestrictedList: restrictedResult.valid && bannedResult.valid,
+            faqVersion: restrictedResult.version,
+            provinceCount: provinceCount,
+            dynastyCount: dynastyCount,
+            conflictCount: conflictCount,
+            extendedStatus: errors.concat(unreleasedCards, restrictedResult.errors, bannedResult.errors)
         };
     }
 
     getRules(deck) {
         const standardRules = {
-            requiredDraw: 60,
-            requiredPlots: 7,
-            maxDoubledPlots: 1
+            minimumDynasty: 40,
+            maximumDynasty: 45,
+            minimumConflict: 40,
+            maximumConflict: 45,
+            requiredProvinces: 5,
+            maxProvince: {
+                air: 1,
+                earth: 1,
+                fire: 1,
+                void: 1,
+                water: 1
+            }
         };
-
         let factionRules = this.getFactionRules(deck.faction.value.toLowerCase());
-        let agendaRules = this.getAgendaRules(deck);
-        let rookeryRules = this.getRookeryRules(deck);
-
-        return this.combineValidationRules([standardRules, factionRules, rookeryRules].concat(agendaRules));
-    }
-
-    getRookeryRules() {
-        return {
-            rules: [
-                {
-                    message: 'More than 2 plot cards in rookery',
-                    condition: deck => {
-                        return !deck.rookeryCards || getDeckCount(deck.rookeryCards.filter(card => card.card.type === 'plot')) <= 2;
-                    }
-                },
-                {
-                    message: 'More than 10 draw cards in rookery',
-                    condition: deck => {
-                        return !deck.rookeryCards || getDeckCount(deck.rookeryCards.filter(card => card.card.type !== 'plot')) <= 10;
-                    }
-                }
-            ]
-        };
+        let allianceRules = this.getAllianceRules(deck.alliance.value.toLowerCase(), deck.faction.value.toLowerCase());
+        let roleRules = this.getRoleRules(deck.role.length > 0 ? deck.role[0].card : null);
+        let strongholdRules = this.getStrongholdRules(deck.stronghold.length > 0 ? deck.stronghold[0].card : null);
+        return this.combineValidationRules([standardRules, factionRules, allianceRules, roleRules, strongholdRules]);
     }
 
     getFactionRules(faction) {
         return {
-            mayInclude: card => card.faction === faction || card.faction === 'neutral'
+            mayInclude: card => card.clan === faction || card.clan === 'neutral'
         };
     }
 
-    getAgendaRules(deck) {
-        if(!deck.agenda) {
-            return [];
-        }
+    getAllianceRules(clan, faction) {
+        return {
+            mayInclude: card => card.side === 'conflict' && card.clan === clan && card.allowed_clans.includes(faction)
+        };
+    }
 
-        let allAgendas = [deck.agenda].concat(deck.bannerCards || []);
-        return allAgendas.map(agenda => AgendaRules[agenda.code]).filter(a => !!a);
+    getStrongholdRules(stronghold) {
+        if(!stronghold) {
+            return {};
+        }
+        return {
+            influence: stronghold.influence_pool,
+            rules: [
+                {
+                    message: 'Your stronghold must match your clan',
+                    condition: deck => stronghold.clan === deck.faction.value
+                }
+            ]
+
+        };
+    }
+
+    getRoleRules(role) {
+        if(!role || !roleRules[role.id]) {
+            return {};
+        }
+        return roleRules[role.id];
     }
 
     combineValidationRules(validators) {
-        let mayIncludeFuncs = validators.map(validator => validator.mayInclude).filter(v => !!v);
-        let cannotIncludeFuncs = validators.map(validator => validator.cannotInclude).filter(v => !!v);
-        let combinedRules = validators.reduce((rules, validator) => rules.concat(validator.rules || []), []);
+        let mayIncludeFuncs = _.compact(_.pluck(validators, 'mayInclude'));
+        let cannotIncludeFuncs = _.compact(_.pluck(validators, 'cannotInclude'));
+        let combinedRules = _.reduce(validators, (rules, validator) => rules.concat(validator.rules || []), []);
+        let combinedRoles = _.reduce(validators, (roles, validator) => roles.concat(validator.roleRestrictions || []), []);
+        let totalInfluence = _.reduce(validators, (total, validator) => total + validator.influence || 0, 0);
+        let maxProvince = _.reduce(validators, (result, validator) => {
+            if(validator.maxProvince) {
+                _.each(result, (amount, element) => result[element] = amount + (validator.maxProvince[element] || 0));
+            }
+            return result;
+        }, { air: 0, earth: 0, fire: 0, void: 0, water: 0 });
         let combined = {
-            mayInclude: card => mayIncludeFuncs.some(func => func(card)),
-            cannotInclude: card => cannotIncludeFuncs.some(func => func(card)),
-            rules: combinedRules
+            mayInclude: card => _.any(mayIncludeFuncs, func => func(card)),
+            cannotInclude: card => _.any(cannotIncludeFuncs, func => func(card)),
+            rules: combinedRules,
+            roleRestrictions: combinedRoles,
+            influence: totalInfluence,
+            maxProvince: maxProvince
         };
-
-        return Object.assign({}, ...validators, combined);
-    }
-
-    isDraftCard(card) {
-        return card && card.packCode === 'VDS';
+        return _.extend({}, ...validators, combined);
     }
 }
 

@@ -1,14 +1,14 @@
 const DeckValidator = require('./DeckValidator');
-const formatDeckAsFullCards = require('./formatDeckAsFullCards');
-const formatDeckAsShortCards = require('./formatDeckAsShortCards');
+/* const formatDeckAsFullCards = require('./formatDeckAsFullCards'); */
+/* const formatDeckAsShortCards = require('./formatDeckAsShortCards'); */
 
 module.exports = {
-    formatDeckAsFullCards: formatDeckAsFullCards,
-    formatDeckAsShortCards: formatDeckAsShortCards,
+    /* formatDeckAsFullCards: formatDeckAsFullCards, */
+    /* formatDeckAsShortCards: formatDeckAsShortCards, */
     validateDeck: function(deck, options) {
         options = Object.assign({ includeExtendedStatus: true }, options);
 
-        let validator = new DeckValidator(options.packs, options.restrictedList);
+        let validator = new DeckValidator(options.packs);
         let result = validator.validateDeck(deck);
 
         if(!options.includeExtendedStatus) {
