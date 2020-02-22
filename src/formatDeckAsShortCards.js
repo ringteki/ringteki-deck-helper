@@ -9,16 +9,14 @@ function formatDeckAsShortCards(deck) {
         username: deck.username,
         lastUpdated: deck.lastUpdated,
         faction: { name: deck.faction.name, value: deck.faction.value }
+        alliance: { name: deck.alliance.name, value: deck.alliance.value }
     };
 
-    if(deck.agenda) {
-        newDeck.agenda = { code: deck.agenda.code };
-    }
-
-    newDeck.bannerCards = (deck.bannerCards || []).map(card => ({ code: card.code }));
-    newDeck.drawCards = formatCards(deck.drawCards || []);
-    newDeck.plotCards = formatCards(deck.plotCards || []);
-    newDeck.rookeryCards = formatCards(deck.rookeryCards || []);
+    newDeck.stronghold = formatCards(deck.stronghold || []);
+    newDeck.role = formatCards(deck.role || []);
+    newDeck.provinceCards = formatCards(deck.provinceCards || []);
+    newDeck.conflictCards = formatCards(deck.conflictCards || []);
+    newDeck.dynastyCards = formatCards(deck.dynastyCards || []);
 
     return newDeck;
 }
