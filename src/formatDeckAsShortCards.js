@@ -8,9 +8,17 @@ function formatDeckAsShortCards(deck) {
         name: deck.name,
         username: deck.username,
         lastUpdated: deck.lastUpdated,
-        faction: { name: deck.faction.name, value: deck.faction.value },
-        alliance: { name: deck.alliance.name, value: deck.alliance.value }
+        faction: { name: deck.faction.name, value: deck.faction.value }
     };
+
+    if(deck.alliance) {
+        if(deck.alliance.value === '') {
+            newDeck.alliance = { name: '', value: '' };
+        } else {
+            newDeck.alliance.name = deck.alliance.name;
+            newDeck.alliance.value = deck.alliance.value;
+        }
+    }
 
     newDeck.stronghold = formatCards(deck.stronghold || []);
     newDeck.role = formatCards(deck.role || []);
