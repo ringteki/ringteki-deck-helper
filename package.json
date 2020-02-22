@@ -1,6 +1,6 @@
 {
   "name": "ringteki-deck-helper",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Deck formatting and validation helpers for ringteki",
   "main": "lib/index.js",
   "scripts": {
