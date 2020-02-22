@@ -14,20 +14,14 @@ function formatDeckAsFullCards(deck, data) {
         username: deck.username,
         lastUpdated: deck.lastUpdated,
         faction: Object.assign({}, deck.faction)
+        alliance: Object.assign({}, deck.alliance)
     };
 
-    if(data.factions) {
-        newDeck.faction = data.factions[deck.faction.value];
-    }
-
-    if(deck.agenda) {
-        newDeck.agenda = data.cards[deck.agenda.code];
-    }
-
-    newDeck.bannerCards = (deck.bannerCards || []).map(card => data.cards[card.code]);
-    newDeck.drawCards = processCardCounts(deck.drawCards || [], data.cards);
-    newDeck.plotCards = processCardCounts(deck.plotCards || [], data.cards);
-    newDeck.rookeryCards = processCardCounts(deck.rookeryCards || [], data.cards);
+    newDeck.stronghold = processCardCounts(deck.stronghold || []);
+    newDeck.role = processCardCounts(deck.role || []);
+    newDeck.provinceCards = processCardCounts(deck.provinceCards || []);
+    newDeck.conflictCards = processCardCounts(deck.conflictCards || []);
+    newDeck.dynastyCards = processCardCounts(deck.dynastyCards || []);
 
     return newDeck;
 }
