@@ -13,7 +13,7 @@ function formatDeckAsFullCards(deck, data) {
         name: deck.name,
         username: deck.username,
         lastUpdated: deck.lastUpdated,
-        faction: Object.assign({}, deck.faction)
+        faction: Object.assign({}, deck.faction),
         alliance: Object.assign({}, deck.alliance)
     };
 
