@@ -27,7 +27,7 @@ class BannedList {
             version: bannedList.version,
             valid: errors.length === 0,
             errors: errors,
-            restrictedCards: cardsOnBannedList
+            bannedCards: cardsOnBannedList
         };
     }
 }
