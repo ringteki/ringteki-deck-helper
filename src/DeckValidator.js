@@ -215,8 +215,9 @@ class DeckValidator {
         return {
             basicRules: errors.length === 0,
             noUnreleasedCards: unreleasedCards.length === 0,
+            noBannedCards: bannedResult.valid,
             officialRole: !role || openRoles.includes(role.id),
-            faqRestrictedList: restrictedResult.valid && bannedResult.valid,
+            faqRestrictedList: restrictedResult.valid,
             faqVersion: restrictedResult.version,
             provinceCount: provinceCount,
             dynastyCount: dynastyCount,

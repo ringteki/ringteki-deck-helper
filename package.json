@@ -1,6 +1,6 @@
 {
   "name": "ringteki-deck-helper",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Deck formatting and validation helpers for ringteki",
   "main": "lib/index.js",
   "scripts": {
@@ -16,7 +16,9 @@
   },
   "license": "MIT",
   "dependencies": {
-    "moment": "^2.22.1"
+    "jquery": "^3.4.1",
+    "moment": "^2.22.1",
+    "underscore": "^1.9.2"
   },
   "devDependencies": {
     "babel-cli": "^6.26.0",
